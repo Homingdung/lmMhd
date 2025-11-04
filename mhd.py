@@ -16,7 +16,17 @@ def vcurl(x):
     return as_vector([x.dx(1), -x.dx(0)])
 
 baseN = 32
-mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
+
+S = Constant(1)
+nu = Constant(0)
+eta = Constant(0)
+
+dt = Constant(0.001)
+t = Constant(0)
+T = 1.0
+
+#mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
+mesh = UnitSquareMesh(baseN, baseN)
 
 (x, y)= SpatialCoordinate(mesh)
 
@@ -43,31 +53,24 @@ z_prev = Function(Z)
 (up, pp, Bp, rp, lmbda_ep, lmbda_ep) = split(z_prev)
 
 # initial condition
-u1 = -sin(2*pi * y)
-u2 = sin(2 * pi * x)
-u_init = as_vector([u1, u2])
-B1 = -sin(2 * pi *y) 
-B2 = sin(4 * pi * x)
-B_init = as_vector([B1, B2])
- 
-z_prev.sub(0).interpolate(u_init)
-z_prev.sub(2).interpolate(B_init)
+u1 = -sin(2*pi*y) * exp(-t)
+u2 = sin(2*pi*x) * exp(-t)
+u_ex = as_vector([u1, u2])
 
-S = Constant(1)
-nu = Constant(0)
-eta = Constant(0)
-    
-#bcs = [DirichletBC(Z.sub(0), 0, (1, 2, 3, )),
-#       DirichletBC(Z.sub(0), as_vector([1, 0]), (4,)),
-#       DirichletBC(Z.sub(2), B_init, "on_boundary"),
-#]
-       
+B1 = -sin(2 * pi *y) * exp(-t)
+B2 = sin(4 * pi * x) * exp(-t)
+B_ex = as_vector([B1, B2])
 
-dt = Constant(0.001)
-t = Constant(0)
-T = 1.0
-gamma = Constant(100)
+u_ex_t = as_vector([-u1, -u2])
+B_ex_t = as_vector([-B1, -B2])
 
+p_ex = Constant(0)
+# Compute forcing terms
+f =  u_ex_t - nu * div(grad(u_ex)) + dot(grad(u_ex), u_ex) - S * dot(grad(B_ex), B_ex) 
+g =  B_ex_t - eta * div(grad(B_ex)) + dot(grad(B_ex), u_ex) - dot(grad(u_ex), B_ex)
+
+z_prev.sub(0).interpolate(u_ex)
+z_prev.sub(2).interpolate(B_ex)
 
 u_avg = u
 p_avg = p
@@ -99,7 +102,7 @@ F = (
 - S * inner(dot(grad(B_avg), B_avg), ut) * dx
 + lmbda_e * inner(u, ut) * dx
 + lmbda_c * inner(B, ut) * dx
-
+- inner(f, ut) * dx
 #p
 - inner(div(u), pt) * dx
 
@@ -111,6 +114,7 @@ F = (
 + inner(r_avg, div(Bt)) * dx
 + S * lmbda_e * inner(B, Bt) * dx
 + lmbda_c* inner(u, Bt) * dx
+- inner(g, Bt) * dx
 #r
 + inner(div(B), rt) * dx
 
@@ -118,11 +122,12 @@ F = (
 ## energy
 + 1/dt * inner(energy(u, B) - energy(up, Bp), lmbda_et) * dx 
 + inner(dissipation(u, B), lmbda_et) * dx
-#- inner(work(f, g), lmbda_et) * dx
+- inner(work(f, g), lmbda_et) * dx
 
 ## helicity
 + 1/dt * inner(cHelicity(u, B) - cHelicity(up, Bp), lmbda_ct) * dx 
 + inner(cdissipation(u, B), lmbda_ct) * dx
+- inner(work(f, g), lmbda_ct) * dx
 )
 
 lu = {
@@ -162,8 +167,12 @@ sp = {
 
 }
 
+bcs = [
+       DirichletBC(Z.sub(0), u_ex, "on_boundary"),
+       DirichletBC(Z.sub(2), B_ex, "on_boundary"),
+       DirichletBC(Z.sub(3), 0, "on_boundary"),
+]
 
-bcs = None
 problem = NonlinearVariationalProblem(F, z, bcs)
 solver = NonlinearVariationalSolver(problem, solver_parameters = sp)
 
