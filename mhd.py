@@ -6,6 +6,7 @@ from firedrake import *
 import ufl.algorithms
 from mpi4py import MPI
 import petsc4py
+import csv
 
 def scurl(x):
     return x[1].dx(0) - x[0].dx(1)
@@ -20,8 +21,8 @@ mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
 (x, y)= SpatialCoordinate(mesh)
 
 
-Vg = VectorFunctionSpace(mesh, "CG", 4)
-Q = FunctionSpace(mesh, "DG", 3)
+Vg = VectorFunctionSpace(mesh, "CG", 2)
+Q = FunctionSpace(mesh, "CG", 1)
 R = FunctionSpace(mesh, "R", 0)
 
 Vb = VectorFunctionSpace(mesh, "CG", 2)
@@ -162,10 +163,6 @@ sp = {
 }
 
 
-
-
-
-
 bcs = None
 problem = NonlinearVariationalProblem(F, z, bcs)
 solver = NonlinearVariationalSolver(problem, solver_parameters = sp)
@@ -175,10 +172,12 @@ B.rename("MagneticField")
 r.rename("LagrangeMultiplier")
 u.rename("Velocity")
 p.rename("Pressure")
-#pvd = VTKFile("output/reb-helicity-mhd.pvd")
-z.assign(z_prev)
-#pvd.write(*z.subfunctions)
+pvd = VTKFile("output/helicity-mhd.pvd")
 
+z.assign(z_prev)
+
+pvd.write(u, p, B, r, time=float(t))
+#pvd.write(*z.subfunctions)
 
 #def compute_helicity(B):
 #    A = Function(Vc)
@@ -203,6 +202,14 @@ def compute_energy(u, B):
 def compute_cross(u, B):
     return assemble(0.5 * inner(u, B) * dx)
 
+
+data_filename = "data.csv"
+if mesh.comm.rank == 0:
+    with open(data_filename, "w", newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["time", "energy", "helicity_c", "divu", "divB"])
+
+
 while (float(t) < float(T-dt) + 1.0e-10):
     t.assign(t+dt)    
     if mesh.comm.rank==0:
@@ -215,6 +222,10 @@ while (float(t) < float(T-dt) + 1.0e-10):
     cross = compute_cross(z.sub(0), z.sub(2))
     dofs = Z.dim()
     print(GREEN % f"divu = {divu}, divB={divB}, totalEnergy={totalEnergy}, crossHelicity={cross}, dofs = {dofs}")
-    #pvd.write(*z.subfunctions, time=float(t))
-
+    pvd.write(u, p, B, r, time=float(t))
+    if mesh.comm.rank == 0:
+        with open(data_filename, "a", newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([f"{float(t):.4f}", f"{totalEnergy}", f"{cross}", f"{divu}", f"{divB}"])		
+    
     z_prev.assign(z)
