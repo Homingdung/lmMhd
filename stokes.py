@@ -1,5 +1,6 @@
-# Lagrangian multiplier for times-dependent Stokes
-# energy-stable
+# Lagrangian multiplier for heat equation
+# only consider energy-preserving
+
 
 from firedrake import *
 from tabulate import tabulate
