@@ -21,7 +21,7 @@ S = Constant(1)
 nu = Constant(0)
 eta = Constant(0)
 
-dt = Constant(0.001)
+dt = Constant(0.01)
 t = Constant(0)
 T = 1.0
 
@@ -71,6 +71,8 @@ g =  B_ex_t - eta * div(grad(B_ex)) + dot(grad(B_ex), u_ex) - dot(grad(u_ex), B_
 
 z_prev.sub(0).interpolate(u_ex)
 z_prev.sub(2).interpolate(B_ex)
+
+z.assign(z_prev)
 
 u_avg = u
 p_avg = p
@@ -237,4 +239,11 @@ while (float(t) < float(T-dt) + 1.0e-10):
                 writer = csv.writer(f)
                 writer.writerow([f"{float(t):.4f}", f"{totalEnergy}", f"{cross}", f"{divu}", f"{divB}"])		
     
+    # Compute L2 error
+    u_error = errornorm(u_ex, z.sub(0), "L2")
+    p_error = errornorm(p_ex, z.sub(1), "L2")
+    B_error = errornorm(B_ex, z.sub(2), "L2")
+    print(f"u_error: {u_error}, p_error: {p_error}, B_error: {B_error}")
+
+
     z_prev.assign(z)
