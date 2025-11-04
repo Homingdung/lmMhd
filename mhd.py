@@ -20,8 +20,8 @@ mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
 (x, y)= SpatialCoordinate(mesh)
 
 
-Vg = VectorFunctionSpace(mesh, "CG", 2)
-Q = FunctionSpace(mesh, "CG", 1)
+Vg = VectorFunctionSpace(mesh, "CG", 4)
+Q = FunctionSpace(mesh, "DG", 3)
 R = FunctionSpace(mesh, "R", 0)
 
 Vb = VectorFunctionSpace(mesh, "CG", 2)
@@ -53,8 +53,8 @@ z_prev.sub(0).interpolate(u_init)
 z_prev.sub(2).interpolate(B_init)
 
 S = Constant(1)
-nu = Constant(1)
-eta = Constant(1)
+nu = Constant(0)
+eta = Constant(0)
     
 #bcs = [DirichletBC(Z.sub(0), 0, (1, 2, 3, )),
 #       DirichletBC(Z.sub(0), as_vector([1, 0]), (4,)),
@@ -73,7 +73,21 @@ p_avg = p
 B_avg = B 
 r_avg = r 
 
+def energy(u, B):
+    return 0.5 * dot(u, u) + 0.5 * float(S) * dot(B, B)
 
+def dissipation(u, B):
+    return nu * inner(grad(u), grad(u)) + S * eta * inner(grad(B), grad(B))
+
+def work(f, g):
+    return dot(f, u) + dot(g, B)
+
+
+def cHelicity(u, B):
+    return dot(u, B)
+
+def cdissipation(u, B):
+    return (nu + eta) * inner(grad(u), grad(B)) 
 
 F = (
 #u
@@ -101,21 +115,14 @@ F = (
 
 # conservation law
 ## energy
-+ inner(dot(u, u), lmbda_et) * dx 
-- inner(dot(up, up), lmbda_et) * dx
-
-+ S * inner(dot(B, B), lmbda_et)  * dx
-- S * inner(dot(Bp, Bp), lmbda_et) * dx
-
-- nu * inner(dot(grad(u), grad(u)), lmbda_et) * dx
++ 1/dt * inner(energy(u, B) - energy(up, Bp), lmbda_et) * dx 
++ inner(dissipation(u, B), lmbda_et) * dx
+#- inner(work(f, g), lmbda_et) * dx
 
 ## helicity
-+ inner(dot(u, B), lmbda_ct) * dx 
-- inner(dot(up, Bp), lmbda_ct) * dx
-
-
++ 1/dt * inner(cHelicity(u, B) - cHelicity(up, Bp), lmbda_ct) * dx 
++ inner(cdissipation(u, B), lmbda_ct) * dx
 )
-
 
 lu = {
 #"mat_type": "aij",
@@ -125,11 +132,43 @@ lu = {
 	 "pc_factor_mat_solver_type":"mumps"
 }
 
+sp = {
+    "mat_type": "matfree",
+    #"snes_monitor": None, 
+    "ksp_type": "fgmres",
+#"ksp_monitor": None,
+    "pc_type": "fieldsplit",
+    "pc_fieldsplit_type": "schur",
+    "pc_fieldsplit_schur_fact_type": "full",
+    "pc_fieldsplit_0_fields": "0, 1, 2, 3",
+    "pc_fieldsplit_1_fields": "4, 5",
+    "fieldsplit_0": {
+        "ksp_type": "preonly",
+        "pc_type": "python",
+#"ksp_monitor": None,
+        "pc_python_type": "firedrake.AssembledPC",
+        "assembled_pc_type": "lu",
+        "assembled_pc_factor_mat_solver_type": "mumps",
+    },
+    "fieldsplit_1": {
+        "ksp_type": "gmres",
+#"ksp_monitor": None,
+        "pc_type": "none",
+        "ksp_max_it": 2, 
+        "ksp_convergence_test": "skip",
 
-sp = lu
+    },
+
+}
+
+
+
+
+
+
 bcs = None
 problem = NonlinearVariationalProblem(F, z, bcs)
-solver = NonlinearVariationalSolver(problem)
+solver = NonlinearVariationalSolver(problem, solver_parameters = sp)
 
 (u, p, B, r, lmbda_e, lmbda_c) = z.subfunctions
 B.rename("MagneticField")
@@ -176,7 +215,6 @@ while (float(t) < float(T-dt) + 1.0e-10):
     cross = compute_cross(z.sub(0), z.sub(2))
     dofs = Z.dim()
     print(GREEN % f"divu = {divu}, divB={divB}, totalEnergy={totalEnergy}, crossHelicity={cross}, dofs = {dofs}")
-#pvd.write(*z.subfunctions, time=float(t))
-
+    #pvd.write(*z.subfunctions, time=float(t))
 
     z_prev.assign(z)
