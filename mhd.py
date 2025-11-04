@@ -18,10 +18,10 @@ def vcurl(x):
 baseN = 32
 
 S = Constant(1)
-nu = Constant(0)
-eta = Constant(0)
+nu = Constant(1)
+eta = Constant(1)
 
-dt = Constant(0.01)
+dt = Constant(1/100)
 t = Constant(0)
 T = 1.0
 
@@ -35,9 +35,6 @@ Vg = VectorFunctionSpace(mesh, "CG", 2)
 Q = FunctionSpace(mesh, "CG", 1)
 R = FunctionSpace(mesh, "R", 0)
 
-Vb = VectorFunctionSpace(mesh, "CG", 2)
-Vn = FunctionSpace(mesh, "CG", 1)
-Vc = FunctionSpace(mesh, "CG", 1)
 # Mixed function space
 # (u, p, B, r, lmbda_e, lmbda_c)
 Z = MixedFunctionSpace([Vg, Q, Vg, Q, R, R])
@@ -64,20 +61,18 @@ B_ex = as_vector([B1, B2])
 u_ex_t = as_vector([-u1, -u2])
 B_ex_t = as_vector([-B1, -B2])
 
-p_ex = Constant(0)
+p_ex = x * exp(-t)
+
 # Compute forcing terms
-f =  u_ex_t - nu * div(grad(u_ex)) + dot(grad(u_ex), u_ex) - S * dot(grad(B_ex), B_ex) 
+f =  u_ex_t - nu * div(grad(u_ex)) + dot(grad(u_ex), u_ex) - S * dot(grad(B_ex), B_ex) + grad(p_ex) 
 g =  B_ex_t - eta * div(grad(B_ex)) + dot(grad(B_ex), u_ex) - dot(grad(u_ex), B_ex)
 
 z_prev.sub(0).interpolate(u_ex)
+z_prev.sub(1).interpolate(p_ex)
 z_prev.sub(2).interpolate(B_ex)
 
 z.assign(z_prev)
 
-u_avg = u
-p_avg = p
-B_avg = B 
-r_avg = r 
 
 def energy(u, B):
     return 0.5 * dot(u, u) + 0.5 * float(S) * dot(B, B)
@@ -98,10 +93,10 @@ def cdissipation(u, B):
 F = (
 #u
   inner((u - up)/dt, ut) * dx
-+ nu * inner(grad(u_avg), grad(ut)) * dx
-+ inner(dot(grad(u_avg), u_avg), ut)*dx # advection term
-- inner(p_avg, div(ut)) * dx
-- S * inner(dot(grad(B_avg), B_avg), ut) * dx
++ nu * inner(grad(u), grad(ut)) * dx
++ inner(dot(grad(u), u), ut)*dx # advection term
+- inner(p, div(ut)) * dx
+- S * inner(dot(grad(B), B), ut) * dx
 + lmbda_e * inner(u, ut) * dx
 + lmbda_c * inner(B, ut) * dx
 - inner(f, ut) * dx
@@ -110,10 +105,10 @@ F = (
 
 #B
 + inner((B - Bp)/dt, Bt) * dx
-+ eta * inner(grad(B_avg), grad(Bt)) * dx
-+ inner(dot(grad(B_avg), u_avg), Bt) * dx
-- inner(dot(grad(u_avg), B_avg), Bt) * dx
-+ inner(r_avg, div(Bt)) * dx
++ eta * inner(grad(B), grad(Bt)) * dx
++ inner(dot(grad(B), u), Bt) * dx
+- inner(dot(grad(u), B), Bt) * dx
++ inner(r, div(Bt)) * dx
 + S * lmbda_e * inner(B, Bt) * dx
 + lmbda_c* inner(u, Bt) * dx
 - inner(g, Bt) * dx
@@ -185,7 +180,6 @@ u.rename("Velocity")
 p.rename("Pressure")
 pvd = VTKFile("output/helicity-mhd.pvd")
 
-z.assign(z_prev)
 
 pvd.write(u, p, B, r, time=float(t))
 #pvd.write(*z.subfunctions)
