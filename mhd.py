@@ -25,11 +25,9 @@ dt = Constant(1/100)
 t = Constant(0)
 T = 1.0
 
-#mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
 mesh = UnitSquareMesh(baseN, baseN)
 
 (x, y)= SpatialCoordinate(mesh)
-
 
 Vg = VectorFunctionSpace(mesh, "CG", 2)
 Q = FunctionSpace(mesh, "CG", 1)
@@ -179,8 +177,6 @@ r.rename("LagrangeMultiplier")
 u.rename("Velocity")
 p.rename("Pressure")
 pvd = VTKFile("output/helicity-mhd.pvd")
-
-
 pvd.write(u, p, B, r, time=float(t))
 #pvd.write(*z.subfunctions)
 
