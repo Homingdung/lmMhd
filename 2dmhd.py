@@ -1,6 +1,7 @@
 # (u, p, B, r) 
 # Case-LRW-2010
 # Lagrangian multiplier method for energy and cross helicity
+# orsag-tang test, figure 6 of the paper
 
 from firedrake import *
 import ufl.algorithms
@@ -18,18 +19,19 @@ def vcurl(x):
 baseN = 32
 
 S = Constant(1)
-nu = Constant(1)
-eta = Constant(1)
+nu = Constant(0)
+eta = Constant(0)
 
 dt = Constant(1/100)
 t = Constant(0)
 T = 1.0
 
-mesh = UnitSquareMesh(baseN, baseN)
+mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
 
 (x, y)= SpatialCoordinate(mesh)
 
 Vg = VectorFunctionSpace(mesh, "CG", 2)
+Vg_ = FunctionSpace(mesh, "CG", 1)
 Q = FunctionSpace(mesh, "CG", 1)
 R = FunctionSpace(mesh, "R", 0)
 
@@ -48,28 +50,23 @@ z_prev = Function(Z)
 (up, pp, Bp, rp, lmbda_ep, lmbda_ep) = split(z_prev)
 
 # initial condition
-u1 = -sin(2*pi*y) * exp(-t)
-u2 = sin(2*pi*x) * exp(-t)
-u_ex = as_vector([u1, u2])
-
-B1 = -sin(2 * pi *y) * exp(-t)
-B2 = sin(4 * pi * x) * exp(-t)
-B_ex = as_vector([B1, B2])
-
-u_ex_t = as_vector([-u1, -u2])
-B_ex_t = as_vector([-B1, -B2])
-
-p_ex = x * exp(-t)
+u1 = -sin(2*pi * y)
+u2 = sin(2 * pi * x)
+u_init = as_vector([u1, u2])
+B1 = -sin(2 * pi *y) 
+B2 = sin(4 * pi * x)
+B_init = as_vector([B1, B2])
+ 
+z_prev.sub(0).interpolate(u_init)
+z_prev.sub(2).interpolate(B_init) 
+z.assign(z_prev)
 
 # Compute forcing terms
-f =  u_ex_t - nu * div(grad(u_ex)) + dot(grad(u_ex), u_ex) - S * dot(grad(B_ex), B_ex) + grad(p_ex) 
-g =  B_ex_t - eta * div(grad(B_ex)) + dot(grad(B_ex), u_ex) - dot(grad(u_ex), B_ex)
+#f =  u_ex_t - nu * div(grad(u_ex)) + dot(grad(u_ex), u_ex) - S * dot(grad(B_ex), B_ex) + grad(p_ex) 
+#g =  B_ex_t - eta * div(grad(B_ex)) + dot(grad(B_ex), u_ex) - dot(grad(u_ex), B_ex)
 
-z_prev.sub(0).interpolate(u_ex)
-z_prev.sub(1).interpolate(p_ex)
-z_prev.sub(2).interpolate(B_ex)
-
-z.assign(z_prev)
+f = Function(Vg).interpolate(as_vector([0, 0]))
+g = Function(Vg).interpolate(as_vector([0, 0]))
 
 
 def energy(u, B):
@@ -162,12 +159,7 @@ sp = {
 
 }
 
-bcs = [
-       DirichletBC(Z.sub(0), u_ex, "on_boundary"),
-       DirichletBC(Z.sub(2), B_ex, "on_boundary"),
-       DirichletBC(Z.sub(3), 0, "on_boundary"),
-]
-
+bcs = None
 problem = NonlinearVariationalProblem(F, z, bcs)
 solver = NonlinearVariationalSolver(problem, solver_parameters = sp)
 
@@ -176,23 +168,10 @@ B.rename("MagneticField")
 r.rename("LagrangeMultiplier")
 u.rename("Velocity")
 p.rename("Pressure")
-pvd = VTKFile("output/helicity-mhd.pvd")
-pvd.write(u, p, B, r, time=float(t))
-#pvd.write(*z.subfunctions)
+j = Function(Vg_, name="Current").interpolate(scurl(B))
 
-#def compute_helicity(B):
-#    A = Function(Vc)
-#    v = TestFunction(Vc)
-#    F_curl  = inner(curl(A), curl(v)) * dx - inner(B, curl(v)) * dx
-#    sp = {  
-#           "ksp_type":"gmres",
-#           "pc_type": "ilu",
-#    }
-#    bcs_curl = [DirichletBC(Vc, 0, "on_boundary")]
-#    hcurl_pb = NonlinearVariationalProblem(F_curl, A, bcs_curl)
-#    solver_hcurl = NonlinearVariationalSolver(hcurl_pb, solver_parameters = sp, options_prefix = "solver_curlcurl")
-#    solver_hcurl.solve()
-#    return assemble(inner(A, B)*dx)
+pvd = VTKFile("output/2d-mhd-orsag-tang.pvd")
+pvd.write(u, p, B, r, j, time=float(t))
 
 def compute_div(u):
     return norm(div(u), "L2")
@@ -223,17 +202,11 @@ while (float(t) < float(T-dt) + 1.0e-10):
     cross = compute_cross(z.sub(0), z.sub(2))
     dofs = Z.dim()
     print(GREEN % f"divu = {divu}, divB={divB}, totalEnergy={totalEnergy}, crossHelicity={cross}, dofs = {dofs}")
-    pvd.write(u, p, B, r, time=float(t))
+    j.interpolate(scurl(z.sub(2)))
+    pvd.write(u, p, B, r, j, time=float(t))
     if mesh.comm.rank == 0:
         with open(data_filename, "a", newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([f"{float(t):.4f}", f"{totalEnergy}", f"{cross}", f"{divu}", f"{divB}"])		
-    
-    # Compute L2 error
-    u_error = errornorm(u_ex, z.sub(0), "L2")
-    p_error = errornorm(p_ex, z.sub(1), "L2")
-    B_error = errornorm(B_ex, z.sub(2), "L2")
-    print(f"u_error: {u_error}, p_error: {p_error}, B_error: {B_error}")
-
-
+     
     z_prev.assign(z)
