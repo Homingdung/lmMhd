@@ -93,11 +93,27 @@ def project_ic(B_init):
           options_prefix="B_init_div_free_projection")
     return zp.subfunctions[0]  # return projected B
 
+def potential(B):
+    Afunc = Function(Vc)
+    v = TestFunction(Vc)
+    F_curl  = inner(curl(Afunc), curl(v)) * dx - inner(B, curl(v)) * dx
 
+    sp_curl = {  
+           "ksp_type":"gmres",
+           "pc_type": "ilu",
+    }
+    bcs_curl = [DirichletBC(Vc, 0, sub) for sub in dirichlet_ids]
+    pb = NonlinearVariationalProblem(F_curl, Afunc, bcs_curl)
+    solver = NonlinearVariationalSolver(pb, solver_parameters = sp_curl)
+    solver.solve()
+    return Afunc
+
+B_proj = project_ic(B_ex)   
 z_prev.sub(0).interpolate(u_ex)    
 z_prev.sub(1).interpolate(P_ex)    
-z_prev.sub(2).interpolate(project_ic(B_ex))
-#z_prev.sub(3).interpolate(A_ex)
+z_prev.sub(2).interpolate(B_proj)
+z_prev.sub(3).interpolate(potential(B_proj))
+
 
 z.assign(z_prev)
 
