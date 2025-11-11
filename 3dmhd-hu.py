@@ -54,6 +54,8 @@ A_ex = as_vector([10 * y*g(x) * g(y) * g(z0), -10 * x*g(x)*g(y)*g(z0), 10 * g(x)
 P_ex = sin(2*pi*x) * sin(2*pi*y) * sin(2*pi*z0)
 B_ex = curl(A_ex)
 
+u_init = as_vector([cos(2*pi*z0), sin(2*pi*z0), sin(2*pi*x)])
+
 z_prev.sub(0).interpolate(u_ex)    
 z_prev.sub(2).interpolate(B_ex)
 z_prev.sub(3).interpolate(A_ex)
@@ -96,7 +98,7 @@ F = (
     - s * inner(cross(j, B), ut) * dx
     + inner(grad(P), ut) * dx
     + lmbda_e * inner(u, ut) * dx # LM for energy_u
-    + lmbda_c * inner(B, ut) * dx # LM for cross helicity
+    + 2 * lmbda_c * inner(B, ut) * dx # LM for cross helicity
     - inner(f, ut) * dx
 
     #P
@@ -124,7 +126,7 @@ F = (
     + inner(form_dissipation_e(u, j), lmbda_et) * dx
     - inner(form_work(f, u), lmbda_et) * dx
     # cross helicity law
-    + 1/dt * inner(form_helicity_c(A, B) - form_helicity_c(Ap, Bp), lmbda_ct) * dx
+    + 1/dt * inner(form_helicity_c(u, B) - form_helicity_c(up, Bp), lmbda_ct) * dx
     + inner(form_dissipation_c(j, u), lmbda_ct) * dx
     - inner(form_work(f, B), lmbda_ct) * dx
     # helicity 
@@ -133,9 +135,9 @@ F = (
 )
 
 dirichlet_ids = ("on_boundary", )
-#bcs = [DirichletBC(Z.sub(index), 0, subdomain) for index in range(len(Z)-3) for subdomain in dirichlet_ids]
+bcs = [DirichletBC(Z.sub(index), 0, subdomain) for index in range(len(Z)-3) for subdomain in dirichlet_ids]
 
-bcs = [
+bcs0 = [
     DirichletBC(Z.sub(0), u_ex, "on_boundary"),
     DirichletBC(Z.sub(2), B_ex, "on_boundary"),
     DirichletBC(Z.sub(3), A_ex, "on_boundary"),
