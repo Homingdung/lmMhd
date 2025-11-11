@@ -44,7 +44,6 @@ A_.rename("MagneticPotential")
 j_.rename("Current")
 
 
-# initial condition
 def g(x):
     return 32 * x**3 * (x - 1) ** 3
 
@@ -54,21 +53,19 @@ A_ex = as_vector([10 * y*g(x) * g(y) * g(z0), -10 * x*g(x)*g(y)*g(z0), 10 * g(x)
 P_ex = sin(2*pi*x) * sin(2*pi*y) * sin(2*pi*z0)
 B_ex = curl(A_ex)
 
-u_init = as_vector([cos(2*pi*z0), sin(2*pi*z0), sin(2*pi*x)])
-
 z_prev.sub(0).interpolate(u_ex)    
 z_prev.sub(1).interpolate(P_ex)    
 z_prev.sub(2).interpolate(B_ex)
 z_prev.sub(3).interpolate(A_ex)
 
-#z.assign(z_prev)
+z.assign(z_prev)
 
 # source term
 f_exp = as_vector([0, 0, 0])
 f = Function(Vc).interpolate(f_exp)
 
 def form_energy(B, u):
-    return 0.5 * s * dot(B, B) + dot(u, u)
+    return 0.5 * s * dot(B, B) + 0.5 * dot(u, u)
 
 def form_dissipation_e(u, j):
     return nu * inner(curl(u), curl(u)) + s * eta * dot(j, j)
@@ -100,7 +97,7 @@ F = (
     + inner(grad(P), ut) * dx
     + lmbda_e * inner(u, ut) * dx # LM for energy_u
     + 2 * lmbda_c * inner(B, ut) * dx # LM for cross helicity
-    - inner(f, ut) * dx
+    #- inner(f, ut) * dx
 
     #P
     + inner(u, grad(Pt)) * dx
@@ -125,12 +122,12 @@ F = (
     # energy law 
     + 1/dt * inner(form_energy(B, u) - form_energy(Bp, up), lmbda_et) * dx
     + inner(form_dissipation_e(u, j), lmbda_et) * dx
-    - inner(form_work(f, u), lmbda_et) * dx
+    #- inner(form_work(f, u), lmbda_et) * dx
 
     # cross helicity law
     + 1/dt * inner(form_helicity_c(u, B) - form_helicity_c(up, Bp), lmbda_ct) * dx
     + inner(form_dissipation_c(j, u), lmbda_ct) * dx
-    - inner(form_work(f, B), lmbda_ct) * dx
+    #- inner(form_work(f, B), lmbda_ct) * dx
 
     # helicity 
     + 1/dt * inner(form_helicity_m(A, B) - form_helicity_m(Ap, Bp), lmbda_mt) * dx
@@ -138,17 +135,7 @@ F = (
 )
 
 dirichlet_ids = ("on_boundary", )
-#bcs = [DirichletBC(Z.sub(index), 0, subdomain) for index in range(len(Z)-3) for subdomain in dirichlet_ids]
-
-bcs = [
-    DirichletBC(Z.sub(0), u_ex, "on_boundary"),
-    DirichletBC(Z.sub(1), P_ex, "on_boundary"),
-    DirichletBC(Z.sub(2), B_ex, "on_boundary"),
-    DirichletBC(Z.sub(3), A_ex, "on_boundary"),
-    DirichletBC(Z.sub(4), 0, "on_boundary"),
-    DirichletBC(Z.sub(5), 0, "on_boundary"),
-
-]
+bcs = [DirichletBC(Z.sub(index), 0, subdomain) for index in range(len(Z)-3) for subdomain in dirichlet_ids]
 
 fs = {
     "mat_type": "matfree",
@@ -159,7 +146,7 @@ fs = {
     "pc_fieldsplit_type": "schur",
     "pc_fieldsplit_schur_fact_type": "full",
     "pc_fieldsplit_0_fields": "0, 1, 2, 3, 4, 5",
-    "pc_fieldsplit_1_fields": "6, 7",
+    "pc_fieldsplit_1_fields": "6, 7, 8",
     "fieldsplit_0": {
         "ksp_type": "preonly",
         "pc_type": "python",
@@ -178,7 +165,7 @@ fs = {
     },
 
 }
-sp = None
+sp = fs
 pb = NonlinearVariationalProblem(F, z, bcs=bcs)
 solver = NonlinearVariationalSolver(pb, solver_parameters = sp)
 
