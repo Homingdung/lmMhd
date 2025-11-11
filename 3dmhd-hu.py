@@ -11,8 +11,8 @@ mesh = UnitCubeMesh(baseN, baseN, baseN)
 (x, y, z0) = SpatialCoordinate(mesh)
 
 k = 1
-nu = Constant(1)
-eta = Constant(1)
+nu = Constant(0)
+eta = Constant(0)
 s = Constant(1)
 
 t = Constant(0)
@@ -169,9 +169,67 @@ sp = fs
 pb = NonlinearVariationalProblem(F, z, bcs=bcs)
 solver = NonlinearVariationalSolver(pb, solver_parameters = sp)
 
+# store data
+data_filename = "data.csv"
+fieldnames = ["t", "energy", "helicity_c", "helicity_m", "divB"]
+if mesh.comm.rank == 0:
+    with open(data_filename, "w", newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+
+# monitor
+def compute_div(B):
+    return norm(div(B), "L2")
+
+def compute_helicity(x, y):
+    return assemble(inner(x, y) * dx)
+
+def compute_energy(u, B):
+    return assemble(0.5 * inner(u, u) * dx + 0.5 * s * inner(B, B) * dx)
+
+
+energy = compute_energy(z.sub(0), z.sub(2)) # u, B
+helicity_m = compute_helicity(z.sub(3), z.sub(2))  # A, B
+helicity_c = compute_helicity(z.sub(0), z.sub(2)) # u, B
+divB = compute_div(z.sub(2)) # B
+if mesh.comm.rank == 0:
+    row = {
+        "t": float(t),
+        "energy": float(energy),
+        "helicity_c": float(helicity_c),
+        "helicity_m": float(helicity_m),
+        "divB": float(divB),
+    }
+    with open(data_filename, "a", newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writerow(row)
+
+
 while (float(t) < float(T-dt) + 1.0e-10):
     t.assign(t+dt)    
     if mesh.comm.rank==0:
         print(f"Solving for t = {float(t):.4f} .. ", flush=True)
     solver.solve()
+
+    # monitor
+    energy = compute_energy(z.sub(0), z.sub(2)) # u, B
+    helicity_m = compute_helicity(z.sub(3), z.sub(2))  # A, B
+    helicity_c = compute_helicity(z.sub(0), z.sub(2)) # u, B
+    divB = compute_div(z.sub(2)) # B
+
+    if mesh.comm.rank == 0:
+        row = {
+            "t": float(t),
+            "energy": float(energy),
+            "helicity_c": float(helicity_c),
+            "helicity_m": float(helicity_m),
+            "divB": float(divB),
+        }
+        with open(data_filename, "a", newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writerow(row)
+
+    
+    print(RED % f"t=float(t), energy={energy}, helicity_c={helicity_c}, helicity_m={helicity_m}, divB={divB}")
     z_prev.assign(z)
+
