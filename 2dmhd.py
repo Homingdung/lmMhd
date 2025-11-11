@@ -30,9 +30,17 @@ mesh = PeriodicRectangleMesh(baseN, baseN, 1, 1, direction="both")
 
 (x, y)= SpatialCoordinate(mesh)
 
-Vg = VectorFunctionSpace(mesh, "CG", 2)
+pair = "cg" # cg
+
+if pair == "sv":
+    Vg = VectorFunctionSpace(mesh, "CG", 4)
+    Q = FunctionSpace(mesh, "DG", 3)
+
+else:
+    Vg = VectorFunctionSpace(mesh, "CG", 2)
+    Q = FunctionSpace(mesh, "CG", 1)
+
 Vg_ = FunctionSpace(mesh, "CG", 1)
-Q = FunctionSpace(mesh, "CG", 1)
 R = FunctionSpace(mesh, "R", 0)
 
 # Mixed function space
