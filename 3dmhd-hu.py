@@ -19,6 +19,8 @@ t = Constant(0)
 dt = Constant(0.01)
 T = 1.0
 
+dirichlet_ids = ("on_boundary", )
+
 Vg = VectorFunctionSpace(mesh, "CG", k)
 Vg_ = FunctionSpace(mesh, "CG", k)
 Vc = FunctionSpace(mesh, "N1curl", k)
@@ -53,10 +55,49 @@ A_ex = as_vector([10 * y*g(x) * g(y) * g(z0), -10 * x*g(x)*g(y)*g(z0), 10 * g(x)
 P_ex = sin(2*pi*x) * sin(2*pi*y) * sin(2*pi*z0)
 B_ex = curl(A_ex)
 
+
+def project_ic(B_init):
+    Zp = MixedFunctionSpace([Vd, Vn])
+    zp = Function(Zp)
+    (Bp_proj, p) = split(zp)
+    test_B, test_p = TestFunctions(Zp)
+    
+    bcs_proj = [DirichletBC(Zp.sub(0), 0, sub) for sub in dirichlet_ids]
+  
+    L = (
+        0.5*inner(Bp_proj, Bp_proj)*dx
+        - inner(B_init, Bp_proj)*dx
+        - inner(p, div(Bp_proj))*dx
+    )
+    Fp = derivative(L, zp, TestFunction(Zp))
+
+    gamma = Constant(1E5)
+    Up = 0.5*(inner(Bp_proj, Bp_proj) + inner(div(Bp_proj) * gamma, div(Bp_proj)) + inner(p * (1/gamma), p))*dx
+    Jp = derivative(derivative(Up, zp), zp)
+
+    spp = {
+        "mat_type": "nest",
+        "snes_type": "ksponly",
+        "ksp_type": "minres",
+        "pc_type": "fieldsplit",
+        "pc_fieldsplit_type": "additive",
+        "fieldsplit_pc_type": "cholesky",
+        "fieldsplit_pc_factor_mat_solver_type": "mumps",
+        "ksp_atol": 1.0e-5,
+        "ksp_rtol": 1.0e-5,
+        "ksp_minres_nutol": 1E-8,
+        "ksp_convergence_test": "skip",
+    }
+
+    solve(Fp == 0, zp, bcs_proj, Jp=Jp, solver_parameters=spp,
+          options_prefix="B_init_div_free_projection")
+    return zp.subfunctions[0]  # return projected B
+
+
 z_prev.sub(0).interpolate(u_ex)    
 z_prev.sub(1).interpolate(P_ex)    
-z_prev.sub(2).interpolate(B_ex)
-z_prev.sub(3).interpolate(A_ex)
+z_prev.sub(2).interpolate(project_ic(B_ex))
+#z_prev.sub(3).interpolate(A_ex)
 
 z.assign(z_prev)
 
@@ -134,7 +175,6 @@ F = (
     + inner(form_dissipation_m(B, j), lmbda_mt) * dx
 )
 
-dirichlet_ids = ("on_boundary", )
 bcs = [DirichletBC(Z.sub(index), 0, subdomain) for index in range(len(Z)-3) for subdomain in dirichlet_ids]
 
 fs = {
