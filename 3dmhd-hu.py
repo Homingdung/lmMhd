@@ -106,7 +106,27 @@ def potential(B):
     pb = NonlinearVariationalProblem(F_curl, Afunc, bcs_curl)
     solver = NonlinearVariationalSolver(pb, solver_parameters = sp_curl)
     solver.solve()
+    diff = norm(B - curl(Afunc), "L2")
+    print(f"||B - curl(A)||_L2 = {diff:.8e}")
     return Afunc
+
+def potential2(B):
+    Z_curl = MixedFunctionSpace([Vc, Vn])
+    z_curl = Function(Z_curl)
+    z_curl_test = TestFunction(Z_curl)
+    (A, p) = split(z_curl)
+    (At, pt) = split(z_curl_test)
+    F_curl  = inner(curl(A), curl(At)) * dx - inner(B, curl(At)) * dx + inner(A, grad(pt)) * dx
+
+    sp_curl = {  
+           "ksp_type":"gmres",
+           "pc_type": "ilu",
+    }
+    bcs_curl = [DirichletBC(Vc, 0, sub) for sub in dirichlet_ids]
+    pb = NonlinearVariationalProblem(F_curl, z_curl, bcs_curl)
+    solver = NonlinearVariationalSolver(pb, solver_parameters = sp_curl)
+    solver.solve()
+    return z_curl.sub(0)
 
 B_proj = project_ic(B_ex)   
 z_prev.sub(0).interpolate(u_ex)    
@@ -286,6 +306,6 @@ while (float(t) < float(T-dt) + 1.0e-10):
             writer.writerow(row)
 
     
-    print(RED % f"t=float(t), energy={energy}, helicity_c={helicity_c}, helicity_m={helicity_m}, divB={divB}")
+    print(RED % f"t={float(t)}, energy={energy}, helicity_c={helicity_c}, helicity_m={helicity_m}, divB={divB}")
     z_prev.assign(z)
 
