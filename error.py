@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 读取数据
-data = pd.read_csv("data.csv")
+data = pd.read_csv("output/data.csv")
 
 # 计算每个变量相对于第一步的差值
 variables = ['energy', 'helicity_c', 'helicity_m']
@@ -19,6 +19,6 @@ plt.xlabel('t')
 plt.ylabel('Δ Value (relative to first step)')
 plt.title('Evolution of variables relative to initial step')
 plt.legend()
-plt.grid(True)
 plt.tight_layout()
+plt.savefig("output/figure.png", dpi=300)
 plt.show()

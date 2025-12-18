@@ -46,6 +46,7 @@ A_.rename("MagneticPotential")
 j_.rename("Current")
 
 
+
 def g(x):
     return 32 * x**3 * (x - 1) ** 3
 
@@ -136,6 +137,8 @@ z_prev.sub(3).interpolate(potential(B_proj))
 
 
 z.assign(z_prev)
+
+
 
 # source term
 f_exp = as_vector([0, 0, 0])
@@ -243,8 +246,12 @@ sp = fs
 pb = NonlinearVariationalProblem(F, z, bcs=bcs)
 solver = NonlinearVariationalSolver(pb, solver_parameters = sp)
 
+
+pvd = VTKFile("output/3dmhd.pvd")
+pvd.write(*z.subfunctions, time=float(t))
+
 # store data
-data_filename = "data.csv"
+data_filename = "output/data.csv"
 fieldnames = ["t", "energy", "helicity_c", "helicity_m", "divB"]
 if mesh.comm.rank == 0:
     with open(data_filename, "w", newline='') as f:
@@ -284,7 +291,7 @@ while (float(t) < float(T-dt) + 1.0e-10):
     if mesh.comm.rank==0:
         print(f"Solving for t = {float(t):.4f} .. ", flush=True)
     solver.solve()
-
+    
     # monitor
     energy = compute_energy(z.sub(0), z.sub(2)) # u, B
     helicity_m = compute_helicity(z.sub(3), z.sub(2))  # A, B
@@ -303,7 +310,7 @@ while (float(t) < float(T-dt) + 1.0e-10):
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writerow(row)
 
-    
+    pvd.write(*z.subfunctions, time=float(t))
     print(RED % f"t={float(t)}, energy={energy}, helicity_c={helicity_c}, helicity_m={helicity_m}, divB={divB}")
     z_prev.assign(z)
 

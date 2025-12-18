@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("data.csv")
+df = pd.read_csv("output/data.csv")
 
 plt.plot(df["t"], df["helicity_c"], label="crossHelicity")
 plt.plot(df["t"], df["energy"], label="Energy")
@@ -13,5 +13,5 @@ plt.ylabel("Value")
 plt.legend()
 #plt.grid(True)
 
-plt.savefig("name.png", dpi=300)
+plt.savefig("output/figure.png", dpi=300)
 plt.show()
