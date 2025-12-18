@@ -180,10 +180,8 @@ F = (
     + inner(u, grad(Pt)) * dx
     
     #B
-    + inner((B - Bp)/dt, Bt) * dx
-    + inner(curl(E), Bt) * dx
-    + lmbda_e * inner(B, Bt) * dx # LM for energy_B
-    + 2 * lmbda_c * inner(u, Bt) * dx # LM for cross helicity
+    + inner(B, Bt) * dx
+    - inner(curl(A), Bt) * dx
     # A
     + inner((A - Ap)/dt, At) * dx
     + inner(E, At) * dx
