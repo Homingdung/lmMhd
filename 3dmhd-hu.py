@@ -189,6 +189,7 @@ F = (
     + inner((A - Ap)/dt, At) * dx
     + inner(E, At) * dx
     + 2 * lmbda_m * inner(B, At) * dx # LM for magnetic helicity
+    + 2 * lmbda_c * inner(curl(A), curl(At)) * dx # LM for cross helicity
     # j 
     + inner(j, jt) * dx
     - inner(B, curl(jt)) * dx
