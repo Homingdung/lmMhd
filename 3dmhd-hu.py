@@ -45,8 +45,6 @@ u_.rename("Velocity")
 A_.rename("MagneticPotential")
 j_.rename("Current")
 
-
-
 def g(x):
     return 32 * x**3 * (x - 1) ** 3
 
@@ -55,7 +53,6 @@ u_ex = curl(phi_ex)
 A_ex = as_vector([10 * y*g(x) * g(y) * g(z0), -10 * x*g(x)*g(y)*g(z0), 10 * g(x)*g(y)*g(z0)])
 P_ex = sin(2*pi*x) * sin(2*pi*y) * sin(2*pi*z0)
 B_ex = curl(A_ex)
-
 
 def project_ic(B_init):
     Zp = MixedFunctionSpace([Vd, Vn])
@@ -176,7 +173,7 @@ F = (
     - s * inner(cross(j, B), ut) * dx
     + inner(grad(P), ut) * dx
     + lmbda_e * inner(u, ut) * dx # LM for energy_u
-    + 2 * lmbda_c * inner(B, ut) * dx # LM for cross helicity
+    + lmbda_c * inner(B, ut) * dx # LM for cross helicity
     #- inner(f, ut) * dx
 
     #P
@@ -189,8 +186,8 @@ F = (
     + inner((A - Ap)/dt, At) * dx
     + inner(E, At) * dx
     + 2 * lmbda_m * inner(B, At) * dx # LM for magnetic helicity
-    + 2 * lmbda_c * inner(u, curl(At)) * dx # LM for cross helicity
-    + 2 * lmbda_e * inner(j,  At) * dx # LM for energy_B
+    + lmbda_c * inner(u, curl(At)) * dx # LM for cross helicity
+    + lmbda_e * inner(j,  At) * dx # LM for energy_B
     # j 
     + inner(j, jt) * dx
     - inner(B, curl(jt)) * dx
@@ -314,5 +311,6 @@ while (float(t) < float(T-dt) + 1.0e-10):
 
     pvd.write(*z.subfunctions, time=float(t))
     print(RED % f"t={float(t)}, energy={energy}, helicity_c={helicity_c}, helicity_m={helicity_m}, divB={divB}")
+    print(f"lm_e={float(z.sub(6))}, lm_c ={float(z.sub(7))}, lm_m = {float(z.sub(8))}")
     z_prev.assign(z)
 
